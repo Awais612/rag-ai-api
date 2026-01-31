@@ -13,8 +13,6 @@ export function errorMiddleware(
       details: err.details ?? null,
     });
   }
-
-  console.log("Unhandled Error: ", err);
   return res.status(500).json({
     error: "Internal Server Error",
   });
