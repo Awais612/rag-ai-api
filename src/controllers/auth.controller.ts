@@ -45,13 +45,14 @@ export async function login(req: Request, res: Response) {
 }
 
 export async function refresh(req: Request, res: Response) {
-  const token = (req as any).cookies?.[REFRESH_COOKIE_NAME] as
-    | string
-    | undefined;
+  const token = req.cookies?.[REFRESH_COOKIE_NAME];
+  if (!token) throw new HttpError(401, "Missing refresh token");
 
-  if (!token) throw new HttpError(401, "Missing Refresh Token");
-  const { accessToken } = await authService.refresh(token);
-  return res.status(200).json({ accessToken });
+  const { accessToken, refreshToken } = await authService.refresh(token);
+
+  setRefreshCookie(res, refreshToken);
+
+  return res.json({ accessToken });
 }
 
 export async function logout(req: Request, res: Response) {
@@ -63,4 +64,3 @@ export async function logout(req: Request, res: Response) {
   clearRefreshCookie(res);
   return res.sendStatus(204);
 }
-

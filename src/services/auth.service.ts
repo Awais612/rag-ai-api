@@ -106,17 +106,51 @@ export async function login(input: { email: string; password: string }) {
   };
 }
 
-export async function refresh(refreshToken: string) {
-  const payload = verifyRefreshToken(refreshToken);
-  const tokenHash = sha256(refreshToken);
+export async function refresh(oldRefreshToken: string) {
+  const payload = verifyRefreshToken(oldRefreshToken);
+  const oldTokenHash = sha256(oldRefreshToken);
 
-  const record = await prisma.refreshToken.findFirst({
-    where: { userId: payload.sub, tokenHash, revokedAt: null },
+  const existing = await prisma.refreshToken.findFirst({
+    where: {
+      userId: payload.sub,
+      tokenHash: oldTokenHash,
+    },
   });
 
-  if (!record) throw new HttpError(401, "Refresh Token revoked/Not Found");
-  if (record.expiresAt < new Date())
-    throw new HttpError(401, "Refresh Token Expired.");
+  if (!existing || existing.revokedAt) {
+    await prisma.refreshToken.updateMany({
+      where: { userId: payload.sub },
+      data: { revokedAt: new Date() },
+    });
+
+    throw new HttpError(
+      401,
+      "Refresh token reuse detected. Please log in again.",
+    );
+  }
+
+  if (existing.expiresAt < new Date()) {
+    throw new HttpError(401, "Refresh token expired");
+  }
+
+  await prisma.refreshToken.update({
+    where: { id: existing.id },
+    data: { revokedAt: new Date() },
+  });
+
+  const newRefreshToken = signRefreshToken({ sub: payload.sub });
+  const newTokenHash = sha256(newRefreshToken);
+
+  const days = Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30);
+  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+  await prisma.refreshToken.create({
+    data: {
+      userId: payload.sub,
+      tokenHash: newTokenHash,
+      expiresAt,
+    },
+  });
 
   const membership = await prisma.workspaceMember.findFirst({
     where: { userId: payload.sub },
@@ -127,7 +161,10 @@ export async function refresh(refreshToken: string) {
     workspaceId: membership?.workspaceId,
   });
 
-  return { accessToken };
+  return {
+    accessToken,
+    refreshToken: newRefreshToken,
+  };
 }
 
 export async function logout(refreshToken?: string) {
