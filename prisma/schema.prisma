@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DocumentStatus {
+  uploaded
+  processing
+  indexed
+  failed
+}
+
+enum MessageRole {
+  system
+  user
+  assistant
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  memberships   WorkspaceMember[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  revokedAt DateTime? @map("revoked_at")
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Workspace {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  members   WorkspaceMember[]
+  documents Document[]
+  chats     Chat[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  workspaceId String   @map("workspace_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  role        String   @default("owner")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Document {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String         @map("workspace_id") @db.Uuid
+  title        String
+  fileName     String         @map("file_name")
+  mimeType     String         @map("mime_type")
+  filePath     String         @map("file_path")
+  status       DocumentStatus @default(uploaded)
+  errorMessage String?        @map("error_message")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chunks         DocumentChunk[]
+  messageSources MessageSource[]
+
+  @@index([workspaceId])
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String                     @map("workspace_id") @db.Uuid
+  documentId  String                     @map("document_id") @db.Uuid
+  chunkIndex  Int                        @map("chunk_index")
+  content     String
+  embedding   Unsupported("vector(768)")
+  createdAt   DateTime                   @default(now()) @map("created_at")
+
+  document       Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  messageSources MessageSource[]
+
+  @@unique([documentId, chunkIndex])
+  @@index([workspaceId, documentId])
+  @@map("document_chunks")
+}
+
+model Chat {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  title       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([workspaceId])
+  @@map("chats")
+}
+
+model Message {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chatId      String      @map("chat_id") @db.Uuid
+  workspaceId String      @map("workspace_id") @db.Uuid
+  role        MessageRole
+  content     String
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  chat    Chat            @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sources MessageSource[]
+
+  @@index([chatId, createdAt])
+  @@map("messages")
+}
+
+model MessageSource {
+  messageId  String @map("message_id") @db.Uuid
+  chunkId    String @map("chunk_id") @db.Uuid
+  documentId String @map("document_id") @db.Uuid
+  score      Float
+
+  message  Message       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chunk    DocumentChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  document Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, chunkId])
+  @@map("message_sources")
+}
