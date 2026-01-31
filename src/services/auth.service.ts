@@ -140,4 +140,5 @@ export async function logout(refreshToken?: string) {
       revokedAt: new Date(),
     },
   });
+  console.log("User logged out OK!");
 }
