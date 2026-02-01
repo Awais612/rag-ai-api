@@ -20,7 +20,7 @@ export function signRefreshToken(payload: RefreshTokenPayload) {
   return jwt.sign(payload, refreshSecret, { expiresIn: "30d" });
 }
 
-export function verifyAcessToken(token: string): AccessTokenPayload {
+export function verifyAccessToken(token: string): AccessTokenPayload {
   if (!accessSecret) throw new Error("JWT_ACCESS_TOKEN is not set");
   return jwt.verify(token, accessSecret) as AccessTokenPayload;
 }

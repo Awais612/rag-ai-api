@@ -19,7 +19,8 @@ async function startServer() {
       console.log(`🚀 API running at http://localhost:${port}`);
     });
   } catch (error) {
-    console.error("❌ Failed to start server");
+    console.error("DB connection failed", error);
+
     console.error(error);
     process.exit(1);
   }
