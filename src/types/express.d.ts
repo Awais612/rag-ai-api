@@ -1,7 +1,14 @@
-import "express-serve-static-core";
+import type {} from "express";
 
-declare module "express-serve-static-core" {
-  interface Request {
-    user?: { id: string; workspaceId?: string };
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        workspaceId?: string;
+      };
+    }
   }
 }
+
+export {};

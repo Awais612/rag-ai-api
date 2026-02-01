@@ -76,9 +76,11 @@ model Document {
   id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workspaceId  String         @map("workspace_id") @db.Uuid
   title        String
-  fileName     String         @map("file_name")
-  mimeType     String         @map("mime_type")
-  filePath     String         @map("file_path")
+  content      String?        @map("content")
+  fileName     String?        @map("file_name")
+  mimeType     String?        @map("mime_type")
+  filePath     String?        @map("file_path")
+
   status       DocumentStatus @default(uploaded)
   errorMessage String?        @map("error_message")
   createdAt    DateTime       @default(now()) @map("created_at")

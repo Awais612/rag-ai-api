@@ -1,19 +1,29 @@
 import type { Request, Response, NextFunction } from "express";
-import { verifyAcessToken } from "../utils/jwt.js";
+import { HttpError } from "../utils/httpError.js";
+import { verifyAccessToken } from "../utils/jwt.js"; // adjust path/name
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const auth = req.headers.authorization;
-  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-
-  if (!token)
-    return res.status(401).json({
-      error: "Invalid or expired token",
-    });
-
+export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   try {
-    const payload = verifyAcessToken(token);
-    (req as any).user = { id: payload?.sub, workspaceId: payload?.workspaceId };
-  } catch {
-    return res.status(401).json({ error: "Invalid or expired token" });
+    const header = req.headers.authorization;
+
+    if (!header || !header.startsWith("Bearer ")) {
+      return next(new HttpError(401, "Missing Authorization header"));
+    }
+
+    const token = header.slice("Bearer ".length).trim();
+    const payload = verifyAccessToken(token); // must throw on invalid
+
+    req.user = {
+      id: payload.sub,
+      workspaceId: payload.workspaceId, // should exist in access token payload
+    };
+
+    if (!req.user.workspaceId) {
+      return next(new HttpError(401, "Missing workspace"));
+    }
+
+    return next();
+  } catch (err) {
+    return next(new HttpError(401, "Invalid access token"));
   }
 }
